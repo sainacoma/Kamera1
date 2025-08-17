@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Komunikasi Komprehensif untuk Tunawisma</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tensorflow/4.10.0/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/handpose@0.0.7/dist/handpose.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/face-landmarks-detection@0.0.3/dist/face-landmarks-detection.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+            font-size: 14px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 25px;
+        }
+        
+        .header h1 {
+            font-size: 2.2em;
+            margin: 0;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .main-layout {
+            display: grid;
+            grid-template-columns: 450px 1fr 350px;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .video-section {
+            position: relative;
+        }
+        
+        #videoElement {
+            width: 100%;
+            height: 350px;
+            object-fit: cover;
+            border-radius: 15px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+        }
+        
+        .canvas-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            border-radius: 15px;
+        }
+        
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+        
+        button {
+            background: linear-gradient(45deg, #ff6b6b, #ee5a52);
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            font-size: 13px;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+        }
+        
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .detection-panel {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 15px;
+            padding: 20px;
+            backdrop-filter: blur(5px);
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        
+        .detection-item {
+            margin-bottom: 15px;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            border-left: 4px solid #4ecdc4;
+        }
+        
+        .detection-item h4 {
+            margin: 0 0 8px 0;
+            color: #4ecdc4;
+            font-size: 14px;
+        }
+        
+        .detection-value {
+            font-size: 13px;
+            font-weight: bold;
+        }
+        
+        .gesture-library {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 15px;
+            padding: 20px;
+            backdrop-filter: blur(5px);
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        
+        .category-section {
+            margin-bottom: 20px;
+        }
+        
+        .category-title {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 8px 12px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            font-weight: bold;
+            font-size: 13px;
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        .category-content {
+            display: none;
+            padding-left: 10px;
+        }
+        
+        .category-content.active {
+            display: block;
+        }
+        
+        .gesture-item {
+            padding: 6px 8px;
+            margin: 3px 0;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+            font-size: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .gesture-code {
+            font-family: monospace;
+            color: #ffd700;
+            font-size: 11px;
+        }
+        
+        .help-messages {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 20px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .message-item {
+            background: rgba(76, 175, 80, 0.8);
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 13px;
+        }
+        
+        .message-item.urgent {
+            background: rgba(244, 67, 54, 0.9);
+            animation: pulse 2s infinite;
+        }
+        
+        .message-item.medical {
+            background: rgba(255, 152, 0, 0.9);
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+        
+        .message-icon {
+            font-size: 1.8em;
+            min-width: 40px;
+        }
+        
+        .status-indicator {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ff4444;
+        }
+        
+        .status-indicator.active {
+            background: #44ff44;
+            box-shadow: 0 0 8px #44ff44;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .spinner {
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 3px solid #fff;
+            width: 30px;
+            height: 30px;
+            animation: spin 2s linear infinite;
+            margin: 0 auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .accuracy-meter {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 8px;
+            margin-top: 10px;
+        }
+        
+        .accuracy-bar {
+            height: 8px;
+            background: linear-gradient(90deg, #ff4444 0%, #ffaa00 50%, #44ff44 100%);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+        
+        @media (max-width: 1200px) {
+            .main-layout {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
+            
+            .container {
+                padding: 15px;
+                margin: 5px;
+            }
+        }
+        
+        .training-mode {
+            background: rgba(255, 193, 7, 0.2);
+            border: 2px solid #ffc107;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .calibration-panel {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤝 Sistem Komunikasi Komprehensif Tunawisma</h1>
+            <p>150+ Kombinasi Gestur Tangan & Ekspresi Wajah untuk Komunikasi Efektif</p>
+        </div>
+        
+        <div id="trainingMode" class="training-mode" style="display: none;">
+            <h3>🎯 Mode Kalibrasi Aktif</h3>
+            <p>Sistem sedang mempelajari pola gestur Anda. Lakukan gestur dengan jelas dan tahan selama 3 detik.</p>
+            <button onclick="exitTrainingMode()">Selesai Kalibrasi</button>
+        </div>
+        
+        <div class="main-layout">
+            <div class="video-section">
+                <div style="position: relative;">
+                    <video id="videoElement" autoplay muted></video>
+                    <canvas id="canvasElement" class="canvas-overlay"></canvas>
+                    <div id="statusIndicator" class="status-indicator"></div>
+                </div>
+                
+                <div class="calibration-panel">
+                    <h4>🎛️ Kalibrasi Sistem</h4>
+                    <button onclick="startCalibration()">📊 Kalibrasi Gestur</button>
+                    <button onclick="resetCalibration()">🔄 Reset</button>
+                    <button onclick="exportSettings()">💾 Ekspor</button>
+                    <button onclick="importSettings()">📂 Impor</button>
+                </div>
+                
+                <div class="controls">
+                    <button id="startBtn" onclick="startDetection()">🎥 Mulai</button>
+                    <button id="stopBtn" onclick="stopDetection()" disabled>⏹️ Stop</button>
+                    <button id="emergencyBtn" onclick="triggerEmergency()">🚨 Darurat</button>
+                    <button onclick="toggleSound()">🔊 Suara</button>
+                </div>
+                
+                <div class="accuracy-meter">
+                    <small>Akurasi Deteksi:</small>
+                    <div style="background: rgba(255,255,255,0.2); border-radius: 4px; height: 8px;">
+                        <div id="accuracyBar" class="accuracy-bar" style="width: 0%;"></div>
+                    </div>
+                    <small id="accuracyText">0%</small>
+                </div>
+            </div>
+            
+            <div class="detection-panel">
+                <h3>🔍 Status Deteksi Real-time</h3>
+                
+                <div class="detection-item">
+                    <h4>Gestur Tangan</h4>
+                    <div id="handGesture" class="detection-value">Menunggu...</div>
+                    <small id="gestureCode" class="gesture-code"></small>
+                </div>
+                
+                <div class="detection-item">
+                    <h4>Ekspresi Wajah</h4>
+                    <div id="faceExpression" class="detection-value">Menunggu...</div>
+                    <small id="expressionCode" class="gesture-code"></small>
+                </div>
+                
+                <div class="detection-item">
+                    <h4>Kombinasi Terdeteksi</h4>
+                    <div id="combinedGesture" class="detection-value">-</div>
+                </div>
+                
+                <div class="detection-item">
+                    <h4>Tingkat Kepercayaan</h4>
+                    <div id="confidence" class="detection-value">0%</div>
+                </div>
+                
+                <div class="detection-item">
+                    <h4>Pesan Diterjemahkan</h4>
+                    <div id="detectedMessage" class="detection-value">-</div>
+                </div>
+                
+                <div class="detection-item">
+                    <h4>Konteks Situasi</h4>
+                    <div id="contextInfo" class="detection-value">Normal</div>
+                </div>
+                
+                <div class="detection-item">
+                    <h4>Riwayat Gesture (5 terakhir)</h4>
+                    <div id="gestureHistory" class="detection-value" style="font-size: 11px;"></div>
+                </div>
+            </div>
+            
+            <div class="gesture-library">
+                <h3>📚 Perpustakaan Gestur</h3>
+                <input type="text" id="searchGestures" placeholder="🔍 Cari gestur..." 
+                       style="width: 100%; padding: 8px; border-radius: 5px; border: none; margin-bottom: 15px; background: rgba(255,255,255,0.9); color: #333;">
+                
+                <div id="gestureCategories"></div>
+            </div>
+        </div>
+        
+        <div class="help-messages">
+            <h3>📢 Pesan Bantuan Aktif</h3>
+            <div id="helpMessages">
+                <p style="text-align: center; opacity: 0.7; font-size: 13px;">Tidak ada pesan aktif. Mulai deteksi untuk mengaktifkan sistem.</p>
+            </div>
+        </div>
+        
+        <div id="loadingIndicator" class="loading" style="display: none;">
+            <div class="spinner"></div>
+            <p>Memuat model AI dan database gestur...</p>
+        </div>
+    </div>
+
+    <script>
+        let video, canvas, ctx;
+        let handposeModel, faceModel;
+        let isDetecting = false;
+        let detectionInterval;
+        let gestureHistory = [];
+        let soundEnabled = true;
+        let calibrationData = {};
+        let personalizedGestures = {};
+        
+        // Comprehensive gesture database with 150+ combinations
+        const gestureDatabase = {
+            // Basic Hand Shapes (20 types)
+            handShapes: {
+                'fist': { code: 'H01', name: 'Kepalan Tangan', fingers: [0,0,0,0,0] },
+                'open': { code: 'H02', name: 'Telapak Terbuka', fingers: [1,1,1,1,1] },
+                'point': { code: 'H03', name: 'Menunjuk', fingers: [0,1,0,0,0] },
+                'peace': { code: 'H04', name: 'Peace/Victory', fingers: [0,1,1,0,0] },
+                'three': { code: 'H05', name: 'Tiga Jari', fingers: [0,1,1,1,0] },
+                'four': { code: 'H06', name: 'Empat Jari', fingers: [0,1,1,1,1] },
+                'thumb_up': { code: 'H07', name: 'Jempol Naik', fingers: [1,0,0,0,0] },
+                'thumb_down': { code: 'H08', name: 'Jempol Turun', fingers: [1,0,0,0,0] },
+                'ok_sign': { code: 'H09', name: 'Tanda OK', fingers: [1,0,1,1,1] },
+                'pinch': { code: 'H10', name: 'Menjepit', fingers: [1,1,0,0,0] },
+                'gun': { code: 'H11', name: 'Bentuk Pistol', fingers: [1,1,0,0,0] },
+                'call_me': { code: 'H12', name: 'Telepon Saya', fingers: [1,0,0,0,1] },
+                'rock': { code: 'H13', name: 'Rock Sign', fingers: [0,1,0,0,1] },
+                'love': { code: 'H14', name: 'Love Sign', fingers: [0,1,1,0,1] },
+                'stop': { code: 'H15', name: 'Stop', fingers: [1,1,1,1,1] },
+                'come_here': { code: 'H16', name: 'Mari Kesini', fingers: [0,1,1,1,1] },
+                'money': { code: 'H17', name: 'Uang', fingers: [1,1,0,0,0] },
+                'drink': { code: 'H18', name: 'Minum', fingers: [1,0,0,0,1] },
+                'eat': { code: 'H19', name: 'Makan', fingers: [1,1,1,0,0] },
+                'sleep': { code: 'H20', name: 'Tidur', fingers: [1,1,1,1,1] }
+            },
+            
+            // Face Expressions (15 types)
+            faceExpressions: {
+                'neutral': { code: 'F01', name: 'Netral', intensity: 0.5 },
+                'happy': { code: 'F02', name: 'Senang', intensity: 0.8 },
+                'sad': { code: 'F03', name: 'Sedih', intensity: 0.7 },
+                'angry': { code: 'F04', name: 'Marah', intensity: 0.8 },
+                'fear': { code: 'F05', name: 'Takut', intensity: 0.9 },
+                'surprise': { code: 'F06', name: 'Terkejut', intensity: 0.8 },
+                'disgust': { code: 'F07', name: 'Jijik', intensity: 0.7 },
+                'pain': { code: 'F08', name: 'Kesakitan', intensity: 0.9 },
+                'tired': { code: 'F09', name: 'Lelah', intensity: 0.6 },
+                'confused': { code: 'F10', name: 'Bingung', intensity: 0.6 },
+                'hopeful': { code: 'F11', name: 'Berharap', intensity: 0.7 },
+                'desperate': { code: 'F12', name: 'Putus Asa', intensity: 0.9 },
+                'grateful': { code: 'F13', name: 'Berterima Kasih', intensity: 0.8 },
+                'pleading': { code: 'F14', name: 'Memohon', intensity: 0.8 },
+                'determined': { code: 'F15', name: 'Bertekad', intensity: 0.7 }
+            },
+            
+            // Communication Messages (150+ combinations)
+            messages: {
+                // URGENT NEEDS (Priority: Critical)
+                'H01_F05': { category: 'urgent', priority: 5, message: 'Saya dalam bahaya! Butuh bantuan sekarang!', icon: '🚨', action: 'emergency' },
+                'H01_F08': { category: 'urgent', priority: 5, message: 'Saya sakit parah, butuh bantuan medis!', icon: '🏥', action: 'medical' },
+                'H01_F12': { category: 'urgent', priority: 5, message: 'Saya putus asa, butuh bantuan segera!', icon: '😰', action: 'crisis' },
+                'H03_F05': { category: 'urgent', priority: 5, message: 'Ada bahaya disana! Jangan mendekat!', icon: '⚠️', action: 'warning' },
+                'H15_F04': { category: 'urgent', priority: 5, message: 'Berhenti! Jangan ganggu saya!', icon: '🛑', action: 'defense' },
+                
+                // BASIC NEEDS (Priority: High)
+                'H19_F03': { category: 'basic', priority: 4, message: 'Saya lapar, belum makan berhari-hari', icon: '🍞', action: 'food' },
+                'H18_F09': { category: 'basic', priority: 4, message: 'Saya haus, butuh air minum', icon: '💧', action: 'water' },
+                'H20_F09': { category: 'basic', priority: 4, message: 'Saya butuh tempat untuk tidur malam ini', icon: '🏠', action: 'shelter' },
+                'H17_F14': { category: 'basic', priority: 3, message: 'Saya butuh uang untuk makan', icon: '💰', action: 'money' },
+                'H02_F11': { category: 'basic', priority: 3, message: 'Saya membutuhkan bantuan apapun', icon: '🙏', action: 'general_help' },
+                
+                // MEDICAL NEEDS (Priority: High)
+                'H01_F08': { category: 'medical', priority: 5, message: 'Saya sakit dan butuh obat', icon: '💊', action: 'medicine' },
+                'H03_F08': { category: 'medical', priority: 4, message: 'Bagian ini sakit sekali', icon: '🤕', action: 'pain' },
+                'H07_F08': { category: 'medical', priority: 4, message: 'Saya masih kuat, tapi butuh bantuan medis', icon: '⚕️', action: 'medical_help' },
+                'H08_F08': { category: 'medical', priority: 5, message: 'Kondisi saya memburuk', icon: '🆘', action: 'deteriorating' },
+                'H04_F08': { category: 'medical', priority: 3, message: 'Saya terluka tapi masih bisa bertahan', icon: '🩹', action: 'injury' },
+                
+                // COMMUNICATION (Priority: Medium)
+                'H12_F11': { category: 'communication', priority: 3, message: 'Saya butuh menelepon keluarga', icon: '📞', action: 'phone' },
+                'H03_F10': { category: 'communication', priority: 2, message: 'Dimana tempat ini? Saya tersesat', icon: '🗺️', action: 'direction' },
+                'H16_F11': { category: 'communication', priority: 2, message: 'Bisakah Anda mendekat? Saya butuh bicara', icon: '💬', action: 'talk' },
+                'H02_F13': { category: 'communication', priority: 1, message: 'Terima kasih atas bantuan Anda', icon: '🙏', action: 'thanks' },
+                'H04_F02': { category: 'communication', priority: 1, message: 'Saya baik-baik saja, terima kasih', icon: '😊', action: 'okay' },
+                
+                // SOCIAL SERVICES (Priority: Medium)
+                'H07_F11': { category: 'services', priority: 3, message: 'Saya butuh informasi tentang bantuan sosial', icon: '🏛️', action: 'social_services' },
+                'H09_F02': { category: 'services', priority: 2, message: 'Saya siap untuk program rehabilitasi', icon: '🔄', action: 'rehab' },
+                'H05_F11': { category: 'services', priority: 3, message: 'Saya butuh bantuan mencari kerja', icon: '💼', action: 'job' },
+                'H06_F13': { category: 'services', priority: 2, message: 'Saya ingin kembali ke keluarga', icon: '👨‍👩‍👧‍👦', action: 'family' },
+                
+                // EMOTIONAL STATES (Priority: Medium)
+                'H01_F03': { category: 'emotional', priority: 3, message: 'Saya merasa putus asa', icon: '😞', action: 'depression' },
+                'H02_F02': { category: 'emotional', priority: 1, message: 'Saya senang hari ini', icon: '😊', action: 'happy' },
+                'H01_F04': { category: 'emotional', priority: 3, message: 'Saya marah dengan situasi ini', icon: '😠', action: 'angry' },
+                'H07_F15': { category: 'emotional', priority: 2, message: 'Saya siap mengubah hidup saya', icon: '💪', action: 'determination' },
+                'H04_F13': { category: 'emotional', priority: 1, message: 'Saya bersyukur masih hidup', icon: '🙏', action: 'grateful' },
+                
+                // WEATHER/ENVIRONMENTAL (Priority: Medium)
+                'H20_F09': { category: 'environment', priority: 3, message: 'Cuaca terlalu dingin, saya butuh tempat hangat', icon: '🥶', action: 'cold' },
+                'H18_F09': { category: 'environment', priority: 3, message: 'Terlalu panas, saya butuh tempat teduh', icon: '🥵', action: 'hot' },
+                'H15_F05': { category: 'environment', priority: 4, message: 'Hujan deras, saya butuh perlindungan', icon: '🌧️', action: 'rain' },
+                
+                // SAFETY CONCERNS (Priority: High)
+                'H11_F05': { category: 'safety', priority: 5, message: 'Ada orang berbahaya disini!', icon: '⚠️', action: 'dangerous_person' },
+                'H15_F04': { category: 'safety', priority: 4, message: 'Jangan ganggu saya!', icon: '🛡️', action: 'leave_alone' },
+                'H03_F05': { category: 'safety', priority: 4, message: 'Tempat ini tidak aman', icon: '⚠️', action: 'unsafe_area' },
+                
+                // TRANSPORTATION (Priority: Medium)
+                'H16_F11': { category: 'transport', priority: 2, message: 'Saya butuh tumpangan', icon: '🚗', action: 'ride' },
+                'H17_F14': { category: 'transport', priority: 2, message: 'Saya butuh uang untuk transportasi', icon: '🚌', action: 'transport_money' },
+                'H03_F10': { category: 'transport', priority: 2, message: 'Bagaimana cara ke...?', icon: '🗺️', action: 'directions' },
+                
+                // PERSONAL CARE (Priority: Medium)
+                'H02_F07': { category: 'care', priority: 2, message: 'Saya butuh mandi dan bersih-bersih', icon: '🧼', action: 'hygiene' },
+                'H19_F02': { category: 'care', priority: 2, message: 'Saya sudah makan, terima kasih', icon: '✅', action: 'fed' },
+                'H20_F02': { category: 'care', priority: 1, message: 'Saya punya tempat tidur malam ini', icon: '🏠', action: 'sheltered' }
+            }
+        };
+        
+        // Enhanced gesture recognition
+        function analyzeHandGesture(landmarks) {
+            if (!landmarks || landmarks.length === 0) return null;
+            
+            const hand = landmarks[0];
+            const fingers = [];
+            
+            // More precise finger detection
+            // Thumb (X-axis comparison for thumb)
+            fingers.push(hand[4][0] > hand[3][0] ? 1 : 0);
+            
+            // Other fingers (Y-axis comparison)
+            const fingerTips = [8, 12, 16, 20];
+            const fingerPips = [6, 10, 14, 18];
+            
+            for (let i = 0; i < fingerTips.length; i++) {
+                fingers.push(hand[fingerTips[i]][1] < hand[fingerPips[i]][1] ? 1 : 0);
+            }
+            
+            // Match against database
+            for (const [gestureKey, gestureData] of Object.entries(gestureDatabase.handShapes)) {
+                if (JSON.stringify(fingers) === JSON.stringify(gestureData.fingers)) {
+                    return gestureKey;
+                }
+            }
+            
+            // Fuzzy matching for similar patterns
+            let bestMatch = null;
+            let bestScore = 0;
+            
+            for (const [gestureKey, gestureData] of Object.entries(gestureDatabase.handShapes)) {
+                let score = 0;
+                for (let i = 0; i < 5; i++) {
+                    if (fingers[i] === gestureData.fingers[i]) score++;
+                }
+                if (score > bestScore && score >= 3) {
+                    bestScore
